@@ -1,0 +1,30 @@
+services:
+  - type: worker
+    name: email-classifier-alerter
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py --daemon
+    autoDeploy: true
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: COLLEGE_GMAIL_USER
+        sync: false
+      - key: COLLEGE_GMAIL_PASSWORD
+        sync: false
+      - key: PERSONAL_GMAIL_USER
+        sync: false
+      - key: PERSONAL_GMAIL_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CALLMEBOT_PHONE
+        sync: false
+      - key: CALLMEBOT_API_KEY
+        sync: false
+      - key: POLL_INTERVAL_SECONDS
+        value: "300"
+      - key: DB_PATH
+        value: data/alerts.db
