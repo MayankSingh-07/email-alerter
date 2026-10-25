@@ -61,3 +61,17 @@ def test_load_config_invalid_poll_interval(monkeypatch):
 
     with pytest.raises(ValueError, match="POLL_INTERVAL_SECONDS"):
         load_config()
+
+@pytest.mark.parametrize("invalid_val", ["0", "-1", "-120"])
+def test_load_config_non_positive_poll_interval(monkeypatch, invalid_val):
+    monkeypatch.setenv("COLLEGE_GMAIL_USER", "student@college.edu")
+    monkeypatch.setenv("COLLEGE_GMAIL_PASSWORD", "app-pass-1")
+    monkeypatch.setenv("PERSONAL_GMAIL_USER", "personal@gmail.com")
+    monkeypatch.setenv("PERSONAL_GMAIL_PASSWORD", "app-pass-2")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test123")
+    monkeypatch.setenv("CALLMEBOT_PHONE", "+919876543210")
+    monkeypatch.setenv("CALLMEBOT_API_KEY", "cmb_test456")
+    monkeypatch.setenv("POLL_INTERVAL_SECONDS", invalid_val)
+
+    with pytest.raises(ValueError, match="POLL_INTERVAL_SECONDS must be a positive integer"):
+        load_config()

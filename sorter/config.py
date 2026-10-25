@@ -39,9 +39,12 @@ def load_config() -> Config:
     poll_interval_str = os.getenv("POLL_INTERVAL_SECONDS")
     if poll_interval_str:
         try:
-            values["poll_interval_seconds"] = int(poll_interval_str)
+            val = int(poll_interval_str)
+            if val <= 0:
+                raise ValueError
+            values["poll_interval_seconds"] = val
         except ValueError:
-            raise ValueError(f"Invalid integer for POLL_INTERVAL_SECONDS: {poll_interval_str}")
+            raise ValueError(f"POLL_INTERVAL_SECONDS must be a positive integer, got: {poll_interval_str}")
 
     db_path = os.getenv("DB_PATH")
     if db_path:
