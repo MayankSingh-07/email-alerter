@@ -12,6 +12,7 @@ class Config:
     groq_api_key: str
     callmebot_phone: str
     callmebot_api_key: str
+    groq_model: str = "llama-3.3-70b-versatile"
     poll_interval_seconds: int = 300
     db_path: str = "data/alerts.db"
 
@@ -49,5 +50,9 @@ def load_config() -> Config:
     db_path = os.getenv("DB_PATH")
     if db_path:
         values["db_path"] = db_path
+
+    groq_model = os.getenv("GROQ_MODEL")
+    if groq_model:
+        values["groq_model"] = groq_model.strip()
 
     return Config(**values)

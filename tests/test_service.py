@@ -47,7 +47,7 @@ def test_service_run_once_end_to_end(test_config, monkeypatch):
         "https://meet.google.com/abc",
         "Join now",
     )
-    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k, *a, **kw: mock_decision)
 
     # Mock alerter
     mock_alert = MagicMock(return_value=True)
@@ -79,7 +79,7 @@ def test_service_failed_alert_not_marked_processed(test_config, monkeypatch, cap
         "https://meet.google.com/test",
         "Join class",
     )
-    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k, *a, **kw: mock_decision)
 
     # Simulate send_whatsapp_alert returning False
     mock_alert = MagicMock(return_value=False)
@@ -114,7 +114,7 @@ def test_service_alert_exception_does_not_mark_processed(test_config, monkeypatc
         "https://meet.google.com/test",
         "Join class",
     )
-    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k, *a, **kw: mock_decision)
 
     # Simulate send_whatsapp_alert raising an Exception
     mock_alert = MagicMock(side_effect=RuntimeError("Gateway timeout"))
@@ -176,7 +176,7 @@ def test_service_run_once_not_alert_worthy(test_config, monkeypatch):
         None,
         None,
     )
-    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k, *a, **kw: mock_decision)
 
     mock_alert = MagicMock()
     monkeypatch.setattr("sorter.service.send_whatsapp_alert", mock_alert)
@@ -239,7 +239,7 @@ def test_service_network_or_ssl_error_resilience(test_config, monkeypatch, caplo
         None,
         None,
     )
-    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k, *a, **kw: mock_decision)
 
     service = EmailMonitorService(test_config, storage)
     with caplog.at_level(logging.ERROR):
@@ -262,9 +262,8 @@ def test_service_classifier_error_resilience(test_config, monkeypatch, caplog):
         lambda u, p: [mock_email] if u == "c@gmail.com" else [],
     )
 
-    def failing_classifier(e, k):
+    def failing_classifier(e, k, *a, **kw):
         raise RuntimeError("Groq API 500 error")
-
     monkeypatch.setattr("sorter.service.classify_email", failing_classifier)
 
     service = EmailMonitorService(test_config, storage)

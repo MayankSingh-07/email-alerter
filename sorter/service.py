@@ -83,7 +83,11 @@ class EmailMonitorService:
 
             # Classify incoming email with Groq LLaMA
             try:
-                decision = classify_email(email_data, self.config.groq_api_key)
+                decision = classify_email(
+                    email_data,
+                    self.config.groq_api_key,
+                    model=self.config.groq_model,
+                )
             except Exception as e:
                 logger.error(
                     "Failed to classify email [%s] ID %s: %s",
