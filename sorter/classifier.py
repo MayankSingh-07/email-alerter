@@ -117,13 +117,13 @@ def classify_email(
         "Content-Type": "application/json",
     }
 
+    truncated_body = email_data.body[:4000] if email_data.body else ""
     user_prompt = (
         f"Sender: {email_data.sender}\n"
         f"Date: {email_data.date}\n"
         f"Subject: {email_data.subject}\n\n"
-        f"Email Body:\n{email_data.body}\n"
+        f"Email Body:\n{truncated_body}\n"
     )
-
     payload = {
         "model": model,
         "temperature": 0.1,

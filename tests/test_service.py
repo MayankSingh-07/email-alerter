@@ -60,6 +60,75 @@ def test_service_run_once_end_to_end(test_config, monkeypatch):
     assert storage.is_processed("College", "<1@c.edu>")
     assert mock_alert.called
 
+def test_service_failed_alert_not_marked_processed(test_config, monkeypatch, caplog):
+    storage = Storage(test_config.db_path)
+    mock_email = ParsedEmail(
+        "<fail1@c.edu>", "prof@college.edu", "Emergency Class", "date", "Join immediately"
+    )
+    monkeypatch.setattr(
+        "sorter.service.fetch_unseen_emails",
+        lambda u, p: [mock_email] if u == "c@gmail.com" else [],
+    )
+
+    mock_decision = ClassificationResult(
+        True,
+        "Online Class",
+        "high",
+        "Class starts now",
+        "Now",
+        "https://meet.google.com/test",
+        "Join class",
+    )
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+
+    # Simulate send_whatsapp_alert returning False
+    mock_alert = MagicMock(return_value=False)
+    monkeypatch.setattr("sorter.service.send_whatsapp_alert", mock_alert)
+
+    service = EmailMonitorService(test_config, storage)
+    with caplog.at_level(logging.WARNING):
+        alerts_sent = service.run_once()
+
+    assert alerts_sent == 0
+    # Crucial: verify it was NOT marked as processed in SQLite
+    assert not storage.is_processed("College", "<fail1@c.edu>")
+    assert "will retry on next polling cycle" in caplog.text
+
+
+def test_service_alert_exception_does_not_mark_processed(test_config, monkeypatch, caplog):
+    storage = Storage(test_config.db_path)
+    mock_email = ParsedEmail(
+        "<fail2@c.edu>", "prof@college.edu", "Emergency Class", "date", "Join immediately"
+    )
+    monkeypatch.setattr(
+        "sorter.service.fetch_unseen_emails",
+        lambda u, p: [mock_email] if u == "c@gmail.com" else [],
+    )
+
+    mock_decision = ClassificationResult(
+        True,
+        "Online Class",
+        "high",
+        "Class starts now",
+        "Now",
+        "https://meet.google.com/test",
+        "Join class",
+    )
+    monkeypatch.setattr("sorter.service.classify_email", lambda e, k: mock_decision)
+
+    # Simulate send_whatsapp_alert raising an Exception
+    mock_alert = MagicMock(side_effect=RuntimeError("Gateway timeout"))
+    monkeypatch.setattr("sorter.service.send_whatsapp_alert", mock_alert)
+
+    service = EmailMonitorService(test_config, storage)
+    with caplog.at_level(logging.WARNING):
+        alerts_sent = service.run_once()
+
+    assert alerts_sent == 0
+    # Crucial: verify it was NOT marked as processed in SQLite
+    assert not storage.is_processed("College", "<fail2@c.edu>")
+    assert "will retry on next polling cycle" in caplog.text
+
 
 def test_service_run_once_skips_already_processed(test_config, monkeypatch):
     storage = Storage(test_config.db_path)

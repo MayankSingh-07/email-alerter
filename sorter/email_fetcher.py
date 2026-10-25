@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import email
 from email.header import decode_header
 import email.message
+import hashlib
 from html.parser import HTMLParser
 import imaplib
 import re
@@ -24,12 +25,15 @@ class _HTMLTextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
         self._pieces: list[str] = []
-        self._ignore: bool = False
+        self._ignore_depth: int = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
         tag_lower = tag.lower()
         if tag_lower in ("script", "style", "head"):
-            self._ignore = True
+            self._ignore_depth += 1
+            return
+
+        if self._ignore_depth > 0:
             return
 
         if tag_lower in ("p", "div", "br", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
@@ -44,13 +48,14 @@ class _HTMLTextExtractor(HTMLParser):
     def handle_endtag(self, tag: str):
         tag_lower = tag.lower()
         if tag_lower in ("script", "style", "head"):
-            self._ignore = False
+            if self._ignore_depth > 0:
+                self._ignore_depth -= 1
             return
-        if tag_lower in ("p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
+        if self._ignore_depth == 0 and tag_lower in ("p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
             self._pieces.append("\n")
 
     def handle_data(self, data: str):
-        if not self._ignore and data:
+        if self._ignore_depth == 0 and data:
             self._pieces.append(data)
 
     def get_text(self) -> str:
@@ -175,6 +180,10 @@ def parse_raw_message(raw_bytes: bytes) -> ParsedEmail:
     date = msg.get("Date", "").strip()
     body = extract_email_body(msg)
 
+    if not message_id:
+        fallback_seed = f"{sender}|{subject}|{date}|{body[:100]}"
+        message_id = f"<gen-{hashlib.sha256(fallback_seed.encode('utf-8')).hexdigest()[:16]}>"
+
     return ParsedEmail(
         message_id=message_id,
         sender=sender,
@@ -196,7 +205,7 @@ def fetch_unseen_emails(
     """
     parsed_emails: list[ParsedEmail] = []
 
-    mail = imaplib.IMAP4_SSL(host)
+    mail = imaplib.IMAP4_SSL(host, timeout=30)
     try:
         mail.login(user, password)
         status, _ = mail.select(mailbox)
@@ -209,7 +218,7 @@ def fetch_unseen_emails(
 
         msg_ids = response[0].split()
         for msg_id in msg_ids:
-            res_status, msg_data = mail.fetch(msg_id, "(RFC822)")
+            res_status, msg_data = mail.fetch(msg_id, "(BODY.PEEK[])")
             if res_status != "OK" or not msg_data:
                 continue
 

@@ -183,3 +183,29 @@ def test_send_whatsapp_alert_network_exception(monkeypatch):
 
     ok = send_whatsapp_alert("+919876543210", "key123", "Alert text", max_retries=2)
     assert ok is False
+
+def test_send_whatsapp_alert_error_page_with_http_200(monkeypatch, caplog):
+    mock_get = MagicMock()
+    resp_200_error = MagicMock()
+    resp_200_error.status_code = 200
+    resp_200_error.text = "ERROR: [CallMeBot] Invalid APIKey or Phone Number"
+    mock_get.return_value = resp_200_error
+    monkeypatch.setattr("requests.get", mock_get)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    ok = send_whatsapp_alert("+919876543210", "bad_key", "Test Alert", max_retries=1)
+    assert ok is False
+    assert "CallMeBot returned error page with HTTP 200" in caplog.text
+
+
+def test_send_whatsapp_alert_phone_normalization(monkeypatch):
+    mock_get = MagicMock()
+    resp_200 = MagicMock()
+    resp_200.status_code = 200
+    resp_200.text = "OK"
+    mock_get.return_value = resp_200
+    monkeypatch.setattr("requests.get", mock_get)
+
+    send_whatsapp_alert("+91 98765-43210", "key123", "Test Alert", max_retries=1)
+    called_url = mock_get.call_args[0][0]
+    assert "phone=%2B919876543210" in called_url

@@ -106,3 +106,27 @@ def test_classify_email_api_error(monkeypatch):
     email_data = ParsedEmail("2", "prof@college.edu", "Class Notice", "date", "Class at 10 AM.")
     with pytest.raises(Exception):
         classify_email(email_data, api_key="dummy_key")
+
+def test_classify_email_truncates_long_body(monkeypatch):
+    mock_post = MagicMock()
+    mock_post.return_value.status_code = 200
+    mock_post.return_value.json.return_value = {
+        "choices": [{"message": {"content": json.dumps({
+            "is_alert_worthy": True,
+            "category": "Assignment / Exam",
+            "urgency": "high",
+            "summary": "Long announcement",
+            "deadline_or_time": "Tomorrow",
+            "action_link": None,
+            "action_required": "Study"
+        })}}]
+    }
+    monkeypatch.setattr("requests.post", mock_post)
+
+    long_body = "A" * 10000
+    email_data = ParsedEmail("3", "prof@college.edu", "Huge Exam Details", "date", long_body)
+    classify_email(email_data, api_key="dummy_key")
+
+    user_msg = next(m["content"] for m in mock_post.call_args[1]["json"]["messages"] if m["role"] == "user")
+    assert ("A" * 4000) in user_msg
+    assert ("A" * 4001) not in user_msg

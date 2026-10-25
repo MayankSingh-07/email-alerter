@@ -15,51 +15,63 @@ class Storage:
         return sqlite3.connect(self.db_path)
 
     def _init_db(self) -> None:
-        with self._get_connection() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS processed_emails (
-                    account TEXT,
-                    message_id TEXT,
-                    subject TEXT,
-                    alerted INTEGER,
-                    processed_at TIMESTAMP,
-                    PRIMARY KEY(account, message_id)
+        conn = self._get_connection()
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS processed_emails (
+                        account TEXT,
+                        message_id TEXT,
+                        subject TEXT,
+                        alerted INTEGER,
+                        processed_at TIMESTAMP,
+                        PRIMARY KEY(account, message_id)
+                    )
+                    """
                 )
-                """
-            )
-            conn.commit()
+        finally:
+            conn.close()
 
     def is_processed(self, account: str, message_id: str) -> bool:
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT 1 FROM processed_emails WHERE account = ? AND message_id = ?",
                 (account, message_id),
             )
             return cursor.fetchone() is not None
+        finally:
+            conn.close()
 
     def mark_processed(
         self, account: str, message_id: str, subject: str, alerted: bool
     ) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        with self._get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO processed_emails (account, message_id, subject, alerted, processed_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(account, message_id) DO UPDATE SET
-                    subject = excluded.subject,
-                    alerted = excluded.alerted,
-                    processed_at = excluded.processed_at
-                """,
-                (account, message_id, subject, 1 if alerted else 0, now),
-            )
-            conn.commit()
+        conn = self._get_connection()
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO processed_emails (account, message_id, subject, alerted, processed_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(account, message_id) DO UPDATE SET
+                        subject = excluded.subject,
+                        alerted = excluded.alerted,
+                        processed_at = excluded.processed_at
+                    """,
+                    (account, message_id, subject, 1 if alerted else 0, now),
+                )
+        finally:
+            conn.close()
 
     def get_processed_count(self) -> int:
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM processed_emails")
             row = cursor.fetchone()
             return row[0] if row else 0
+        finally:
+            conn.close()

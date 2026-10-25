@@ -119,19 +119,21 @@ class EmailMonitorService:
                         alerts_sent += 1
                         alerted = True
                     else:
-                        logger.error(
-                            "Failed to deliver WhatsApp alert for email [%s] ID %s",
+                        logger.warning(
+                            "Failed to deliver WhatsApp alert for email [%s] ID %s; will retry on next polling cycle.",
                             account_name,
                             message_id,
                         )
+                        continue
                 except Exception as e:
-                    logger.error(
-                        "Unexpected error sending WhatsApp alert for [%s] ID %s: %s",
+                    logger.warning(
+                        "Unexpected error sending WhatsApp alert for [%s] ID %s: %s; will retry on next polling cycle.",
                         account_name,
                         message_id,
                         e,
                         exc_info=True,
                     )
+                    continue
             else:
                 logger.info(
                     "Email [%s] '%s' categorized as '%s' (not alert-worthy).",

@@ -1,10 +1,10 @@
 """WhatsApp Option B Alerter module using CallMeBot gateway."""
 
 import logging
+import re
 import time
 from urllib.parse import quote_plus
 import requests
-
 from sorter.classifier import ClassificationResult
 from sorter.email_fetcher import ParsedEmail
 
@@ -92,9 +92,8 @@ def send_whatsapp_alert(
     Returns:
         True if dispatched successfully (HTTP 200), False otherwise.
     """
-    # Clean phone number (strip whitespace)
-    cleaned_phone = phone.strip()
-    
+    # Clean phone number (remove spaces, hyphens, and any non-digit/plus characters)
+    cleaned_phone = re.sub(r"[^\d+]", "", phone.strip())
     # We URL-encode query parameters via params dictionary in requests
     # which uses urllib.parse.quote or quote_plus under the hood.
     # To be fully compliant with CallMeBot requirements (which expects text parameter
@@ -115,8 +114,16 @@ def send_whatsapp_alert(
             response = requests.get(request_url, timeout=timeout)
 
             if response.status_code == 200:
-                logger.info("WhatsApp alert successfully delivered.")
-                return True
+                if "error" in response.text.lower():
+                    logger.error(
+                        "CallMeBot returned error page with HTTP 200: %s (attempt %d/%d)",
+                        response.text.strip(),
+                        attempt,
+                        max_retries,
+                    )
+                else:
+                    logger.info("WhatsApp alert successfully delivered.")
+                    return True
             elif response.status_code == 429:
                 logger.warning(
                     "CallMeBot rate limit reached (HTTP 429). Backing off for %.1fs (attempt %d/%d)...",

@@ -95,6 +95,71 @@ def test_html_only_strips_scripts_and_styles():
     assert "Quiz tomorrow & bring calculators." in parsed.body
     assert "https://quiz.college.edu" in parsed.body
 
+def test_html_nested_style_and_head_extractor():
+    html_content = (
+        "<html><head><title>Ignore Title</title>"
+        "<style>body { color: blue; } .nested { font-size: 12px; }</style>"
+        "</head><body>"
+        "<p>First visible line</p>"
+        "<div><script>var x = 10; function test() { return x; }</script></div>"
+        "<p>Second visible line</p>"
+        "</body></html>"
+    )
+    msg = MIMEText(html_content, "html")
+    parsed = parse_raw_message(msg.as_bytes())
+    assert "First visible line" in parsed.body
+    assert "Second visible line" in parsed.body
+    assert "Ignore Title" not in parsed.body
+    assert "body {" not in parsed.body
+    assert "var x = 10" not in parsed.body
+
+
+def test_fallback_hash_for_missing_message_id():
+    raw1 = (
+        b"From: sender1@example.com\r\n"
+        b"Subject: Meeting Alert\r\n"
+        b"Date: Mon, 26 Oct 2026 12:00:00 +0000\r\n"
+        b"Content-Type: text/plain\r\n\r\n"
+        b"Please attend the meeting."
+    )
+    raw2 = (
+        b"From: sender1@example.com\r\n"
+        b"Subject: Meeting Alert\r\n"
+        b"Date: Mon, 26 Oct 2026 12:00:00 +0000\r\n"
+        b"Content-Type: text/plain\r\n\r\n"
+        b"Please attend the meeting."
+    )
+    parsed1 = parse_raw_message(raw1)
+    parsed2 = parse_raw_message(raw2)
+    assert parsed1.message_id.startswith("<gen-")
+    assert parsed1.message_id.endswith(">")
+    # Deterministic fallback hash
+    assert parsed1.message_id == parsed2.message_id
+
+
+def test_fetch_unseen_emails_uses_body_peek_and_timeout(mocker):
+    mock_imap = mocker.MagicMock()
+    mock_imap_ssl_cls = mocker.patch("imaplib.IMAP4_SSL", return_value=mock_imap)
+
+    mock_imap.login.return_value = ("OK", [b"Logged in"])
+    mock_imap.select.return_value = ("OK", [b"1"])
+    mock_imap.search.return_value = ("OK", [b"201"])
+
+    sample_email = (
+        b"From: test@college.edu\r\n"
+        b"Subject: Peek Test\r\n"
+        b"Message-ID: <peek1@college.edu>\r\n"
+        b"Content-Type: text/plain\r\n\r\n"
+        b"Peek content."
+    )
+    mock_imap.fetch.return_value = ("OK", [(b"201 (BODY.PEEK[] {100})", sample_email), b")"])
+
+    results = fetch_unseen_emails("user@gmail.com", "secretpass", host="imap.gmail.com")
+    assert len(results) == 1
+    assert results[0].message_id == "<peek1@college.edu>"
+    mock_imap_ssl_cls.assert_called_once_with("imap.gmail.com", timeout=30)
+    mock_imap.fetch.assert_called_once_with(b"201", "(BODY.PEEK[])")
+
 
 def test_fetch_unseen_emails_mocked(mocker):
     mock_imap = mocker.MagicMock()
